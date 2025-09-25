@@ -6,8 +6,6 @@ export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
   try {
-    console.log("=== API ROUTE CALLED ===");
-
     const body = await req.json();
     const { messages } = body;
 
@@ -20,12 +18,10 @@ export async function POST(req: NextRequest) {
 
     const lastUserMessage =
       messages[messages.length - 1]?.content?.toString() || "";
-    console.log("Processing message:", lastUserMessage);
 
-    // 🌱 mode agriculture
-    const aiResult = await generateText({
+    const result = await generateText({
       model: google("gemini-2.5-flash"),
-      prompt: `Kamu adalah asisten pertanian bernama "Siap Panen". 
+      prompt: `Kamu adalah asisten pertanian bernama "Siap Panen".
 Tugasmu membantu petani dalam:
 - Menentukan waktu tanam yang tepat sesuai musim/cuaca
 - Membuat jadwal penyiraman & pemupukan
@@ -36,12 +32,8 @@ Jawablah ringkas, praktis, dan relevan.
 Pertanyaan pengguna: ${lastUserMessage}`,
     });
 
-    const responseText = aiResult.text;
-
-    console.log("✅ Response generated:", responseText.slice(0, 80) + "...");
-
     return NextResponse.json({
-      response: responseText,
+      response: result.text,
     });
   } catch (error) {
     console.error("💥 API ERROR:", error);
