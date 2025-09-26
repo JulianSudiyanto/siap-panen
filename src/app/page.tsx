@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import TypingDots from "./components/TypingDots";
 import { BotAvatar, UserAvatar } from "./components/Avatar";
+import Welcome from "./components/Welcome";
 
 type Msg = { role: "user" | "assistant"; content: string };
 
@@ -13,25 +14,29 @@ function formatIncoming(text: string): string {
     if (obj && (obj.response || obj.message)) {
       text = String(obj.response ?? obj.message);
     }
-  } catch (_) { /* ignore */ }
-
+  } catch (_) {}
   const lines = text.split("\n").map((l) => l.trimEnd());
   let inList = false;
   const htmlParts: string[] = [];
   const pushText = (t: string) =>
     htmlParts.push(
       t
-        .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>") 
+        .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
         .replace(/`(.+?)`/g, "<code>$1</code>")
         .replace(/\n/g, "<br/>")
     );
-
   for (const l of lines) {
     if (/^[-*]\s+/.test(l)) {
-      if (!inList) { htmlParts.push("<ul>"); inList = true; }
+      if (!inList) {
+        htmlParts.push("<ul>");
+        inList = true;
+      }
       htmlParts.push("<li>" + l.replace(/^[-*]\s+/, "") + "</li>");
     } else {
-      if (inList) { htmlParts.push("</ul>"); inList = false; }
+      if (inList) {
+        htmlParts.push("</ul>");
+        inList = false;
+      }
       pushText(l + "\n");
     }
   }
@@ -40,13 +45,21 @@ function formatIncoming(text: string): string {
 }
 
 export default function Home() {
-  const welcome: Msg[] = useMemo(() => ([
-    {
-      role: "assistant",
-      content:
-        "Halo! 👋 Aku  Siap Panen, pendamping tanimu yang cheerful. Aku bisa bantu: \n- Menentukan waktu tanam terbaik \n- Cek cuaca & curah hujan \n- Atur jadwal penyiraman \n- Solusi hama & penyakit tanaman\n\nTanya apa saja, ya! 🌾✨",
-    },
-  ]), []);
+  const [showChat, setShowChat] = useState(false);
+
+const startChat = () => setShowChat(true);
+
+
+  const welcome: Msg[] = useMemo(
+    () => [
+      {
+        role: "assistant",
+        content:
+          "Halow! 👋, Diskusi apa kita hari ini ! 🌾✨",
+      },
+    ],
+    []
+  );
 
   const [messages, setMessages] = useState<Msg[]>(welcome);
   const [input, setInput] = useState("");
@@ -61,7 +74,6 @@ export default function Home() {
   useEffect(() => {
     const el = scrollAreaRef.current;
     if (!el) return;
-
     const onScroll = () => {
       const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 30;
       setIsAtBottom(nearBottom);
@@ -82,30 +94,24 @@ export default function Home() {
   async function sendMessage(e: React.FormEvent) {
     e.preventDefault();
     if (!input.trim() || loading) return;
-
     const newMessages: Msg[] = [...messages, { role: "user", content: input }];
     setMessages(newMessages);
     setInput("");
     setLoading(true);
-
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ messages: newMessages }),
       });
-
       const reader = res.body?.getReader();
       if (!reader) throw new Error("No stream");
-
       let assistantReply = "";
       const decoder = new TextDecoder();
-
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
         assistantReply += decoder.decode(value, { stream: true });
-
         setMessages((prev) => {
           const content = formatIncoming(assistantReply);
           if (prev[prev.length - 1]?.role === "assistant") {
@@ -121,64 +127,138 @@ export default function Home() {
         ...prev,
         { role: "assistant", content: "⚠️ Terjadi error. Coba lagi ya." },
       ]);
-    } finally { setLoading(false); }
+    } finally {
+      setLoading(false);
+    }
   }
 
-  function newChat() {
-  setMessages(welcome);   
-  setUnread(0);
-  setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
+  async function submitQuick(text: string) {
+  if (!text.trim() || loading) return;
+
+  const newMessages: Msg[] = [...messages, { role: "user", content: text }];
+  setMessages(newMessages);
+  setInput("");
+  setLoading(true);
+
+  try {
+    const res = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messages: newMessages }),
+    });
+
+    const reader = res.body?.getReader();
+    if (!reader) throw new Error("No stream");
+
+    let assistantReply = "";
+    const decoder = new TextDecoder();
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      assistantReply += decoder.decode(value, { stream: true });
+
+      setMessages((prev) => {
+        const content = formatIncoming(assistantReply);
+        if (prev[prev.length - 1]?.role === "assistant") {
+          const next = [...prev];
+          next[next.length - 1] = { role: "assistant", content };
+          return next;
+        }
+        return [...prev, { role: "assistant", content }];
+      });
+    }
+  } catch {
+    setMessages((prev) => [
+      ...prev,
+      { role: "assistant", content: "⚠️ Terjadi error. Coba lagi ya." },
+    ]);
+  } finally {
+    setLoading(false);
+  }
 }
 
-  const chips = [
-    "Waktu tanam padi Ciwidey",
-    "Cek curah hujan minggu ini",
-    "Atur jadwal penyiraman",
-    "Solusi hama wereng",
-  ];
+  function newChat() {
+  setMessages(welcome);
+  setInput("");
+  setUnread(0);
+  setShowChat(false); 
+}
+  if (!showChat) {
+    return (
+      <main className="min-h-dvh flex flex-col">
+        <motion.header
+          initial={{ y: -10, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          className="card header-solid px-4 py-3 mt-2 header-sticky"
+        >
+          <div className="flex items-center gap-3">
+            <motion.div
+              className="size-10 rounded-full bg-white/90 grid place-items-center border border-white/30"
+              animate={{ rotate: [0, -6, 6, 0], scale: [1, 1.05, 1] }}
+              transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+            >
+              <span aria-hidden>🌱</span>
+            </motion.div>
+            <div className="flex-1">
+              <h1 className="text-lg font-semibold text-white">Siap Panen</h1>
+              <p className="text-xs subtitle">
+                Bantu petani atur waktu tanam & perawatan
+              </p>
+            </div>
+            <span className="badge text-xs px-2 py-1 rounded-full">Group 3</span>
+          </div>
+        </motion.header>
+
+        <Welcome
+  onStart={() => setShowChat(true)}
+  onQuick={(q) => {
+    setShowChat(true);
+    setTimeout(() => submitQuick(q), 0);
+  }}
+/>
+
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-dvh flex flex-col">
       {/* HEADER (ikon animasi) */}
       <motion.header
-  initial={{ y: -10, opacity: 0 }}
-  animate={{ y: 0, opacity: 1 }}
-  className="card header-solid px-4 py-3 mt-2 header-sticky"
->
-  <div className="flex items-center gap-3">
-    {/* ikon animasi */}
-    <motion.div
-      className="size-10 rounded-full bg-white/90 grid place-items-center border border-white/30"
-      animate={{ rotate: [0, -6, 6, 0], scale: [1, 1.05, 1] }}
-      transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-    >
-      <span aria-hidden>🌱</span>
-    </motion.div>
-
-    {/* judul + subjudul (putih kontras) */}
-    <div className="flex-1">
-      <h1 className="text-lg font-semibold text-white">Siap Panen</h1>
-      <p className="text-xs subtitle">
-        Bantu petani atur waktu tanam & perawatan
-      </p>
-    </div>
-
-    {/* badge + tombol new chat dengan kontras di atas hijau */}
-    <div className="flex items-center gap-2">
-      <span className="badge text-xs px-2 py-1 rounded-full">Group 3</span>
-      <motion.button
-        whileTap={{ scale: 0.96 }}
-        onClick={newChat}
-        className="text-xs px-2.5 py-1 rounded-full bg-white text-emerald-800 border border-white/40 shadow-sm"
-        title="Mulai percakapan baru"
+        initial={{ y: -10, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        className="card header-solid px-4 py-3 mt-2 header-sticky"
       >
-        New Chat
-      </motion.button>
-    </div>
-  </div>
-</motion.header>
+        <div className="flex items-center gap-3">
+          <motion.div
+            className="size-10 rounded-full bg-white/90 grid place-items-center border border-white/30"
+            animate={{ rotate: [0, -6, 6, 0], scale: [1, 1.05, 1] }}
+            transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+          >
+            <span aria-hidden>🌱</span>
+          </motion.div>
 
+          <div className="flex-1">
+            <h1 className="text-lg font-semibold text-white">Siap Panen</h1>
+            <p className="text-xs subtitle">
+              Bantu petani atur waktu tanam & perawatan
+            </p>
+          </div>
 
+          <div className="flex items-center gap-2">
+            <span className="badge text-xs px-2 py-1 rounded-full">Group 3</span>
+            <motion.button
+              whileTap={{ scale: 0.96 }}
+              onClick={newChat}
+              className="text-xs px-2.5 py-1 rounded-full bg-white text-emerald-800 border border-white/40 shadow-sm"
+              title="Mulai percakapan baru"
+            >
+              New Chat
+            </motion.button>
+          </div>
+        </div>
+      </motion.header>
 
       {/* KARTU UTAMA DENGAN BORDER */}
       <section className="card mt-3 flex-1 flex flex-col">
@@ -205,7 +285,6 @@ export default function Home() {
               ))}
             </AnimatePresence>
 
-            {/* typing indikator */}
             {loading && (
               <div className="flex justify-start items-start gap-2">
                 <BotAvatar />
@@ -216,7 +295,6 @@ export default function Home() {
             <div ref={bottomRef} />
           </div>
 
-          {/* FAB new messages */}
           {!isAtBottom && unread > 0 && (
             <button
               className="fab px-3 py-1.5 rounded-full text-sm bg-emerald-600 text-white shadow"
@@ -228,23 +306,9 @@ export default function Home() {
           )}
         </div>
 
-        {/* quick chips */}
-        <div className="px-3 sm:px-4 pb-2">
-          <div className="flex gap-2 overflow-x-auto no-scrollbar">
-            {chips.map((c) => (
-             <button
-  key={c}
-  onClick={() => setInput(c)}
-  className="px-3 py-1.5 rounded-full text-xs bg-emerald-50 border border-emerald-100 hover:bg-emerald-100 transition text-emerald-900"
->
-  {c}
-</button>
 
-            ))}
-          </div>
-        </div>
 
-        {/* input bar gelap (menyatu background) */}
+        {/* input bar gelap */}
         <form onSubmit={sendMessage} className="input-bar">
           <div className="px-3 sm:px-4 pb-3">
             <div className="input-dark rounded-2xl p-2 flex items-end gap-2">
@@ -264,8 +328,8 @@ export default function Home() {
                 {loading ? (
                   <span className="inline-flex items-center gap-2">
                     <svg className="animate-spin size-4" viewBox="0 0 24 24">
-                      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" fill="none" opacity=".35"/>
-                      <path d="M22 12a10 10 0 0 1-10 10" stroke="currentColor" strokeWidth="3" fill="none"/>
+                      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" fill="none" opacity=".35" />
+                      <path d="M22 12a10 10 0 0 1-10 10" stroke="currentColor" strokeWidth="3" fill="none" />
                     </svg>
                     Memproses…
                   </span>
