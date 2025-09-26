@@ -7,9 +7,7 @@ import { BotAvatar, UserAvatar } from "./components/Avatar";
 
 type Msg = { role: "user" | "assistant"; content: string };
 
-// --- util: parsing/formatting agar tidak tampil JSON mentah ---
 function formatIncoming(text: string): string {
-  // Jika server kirim {"response":"..."} → ambil field response
   try {
     const obj = JSON.parse(text);
     if (obj && (obj.response || obj.message)) {
@@ -17,15 +15,13 @@ function formatIncoming(text: string): string {
     }
   } catch (_) { /* ignore */ }
 
-  // Rapikan bullet otomatis
-  // - ganti baris "- " menjadi list markdown sederhana
   const lines = text.split("\n").map((l) => l.trimEnd());
   let inList = false;
   const htmlParts: string[] = [];
   const pushText = (t: string) =>
     htmlParts.push(
       t
-        .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>") // **bold**
+        .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>") 
         .replace(/`(.+?)`/g, "<code>$1</code>")
         .replace(/\n/g, "<br/>")
     );
@@ -44,7 +40,6 @@ function formatIncoming(text: string): string {
 }
 
 export default function Home() {
-  // Pesan default sambutan
   const welcome: Msg[] = useMemo(() => ([
     {
       role: "assistant",
@@ -60,7 +55,6 @@ export default function Home() {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  // --- new messages indicator ---
   const [isAtBottom, setIsAtBottom] = useState(true);
   const [unread, setUnread] = useState(0);
 
@@ -131,9 +125,8 @@ export default function Home() {
   }
 
   function newChat() {
-  setMessages(welcome);   // welcome sudah ada
+  setMessages(welcome);   
   setUnread(0);
-  // optional: scroll ke atas lalu ke bawah biar fokus ke sapaan
   setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
 }
 
@@ -205,7 +198,6 @@ export default function Home() {
                   {m.role === "assistant" && <BotAvatar />}
                   <div
                     className={`bubble ${m.role === "user" ? "bubble-user" : "bubble-bot"}`}
-                    // HTML aman (dari formatting ringan di atas)
                     dangerouslySetInnerHTML={{ __html: m.content }}
                   />
                   {m.role === "user" && <UserAvatar />}
