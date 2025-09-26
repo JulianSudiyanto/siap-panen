@@ -158,6 +158,12 @@ body{
   z-index: 10;
 }
 /* === Header hijau solid === */
+.header-sticky {
+  position: sticky;
+  top: max(0px, env(safe-area-inset-top));
+  z-index: 30; /* di atas konten */
+}
+
 .header-solid {
   /* hijau lembut → hijau utama (solid, bukan transparan) */
   background: linear-gradient(180deg, #34d399 0%, #10b981 100%); /* emerald-400 → emerald-500 */
