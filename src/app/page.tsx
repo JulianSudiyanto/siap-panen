@@ -150,7 +150,7 @@ export default function Home() {
       <motion.header
   initial={{ y: -10, opacity: 0 }}
   animate={{ y: 0, opacity: 1 }}
-  className="card header-solid px-4 py-3 mt-2"
+  className="card header-solid px-4 py-3 mt-2 header-sticky"
 >
   <div className="flex items-center gap-3">
     {/* ikon animasi */}
