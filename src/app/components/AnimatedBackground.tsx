@@ -8,13 +8,12 @@ export default function AnimatedBackground() {
   const [size, setSize] = useState({ w: 0, h: 0 });
 
   useEffect(() => {
-    // komponen sudah di client
     setMounted(true);
 
     const update = () =>
       setSize({ w: window.innerWidth, h: window.innerHeight });
 
-    update(); // set ukuran awal
+    update(); 
     window.addEventListener("resize", update);
     return () => window.removeEventListener("resize", update);
   }, []);
@@ -54,3 +53,4 @@ export default function AnimatedBackground() {
     </>
   );
 }
+

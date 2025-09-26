@@ -44,7 +44,6 @@ body{
   font-family: var(--font-geist-sans),system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,Arial;
 }
 
-/* ===== GRADIENT BG bergerak (lebih muda & colorful) ===== */
 .bg-animated{
   position:fixed; inset:0; z-index:-1;
   background:
@@ -77,7 +76,6 @@ body{
   100%{ transform:translateY(0) translateX(0) }
 }
 
-/* ===== Kartu utama (border jelas) ===== */
 .card{
   background: var(--card);
   backdrop-filter: blur(10px);
@@ -87,7 +85,6 @@ body{
   box-shadow: 0 12px 30px rgba(0,0,0,.12);
 }
 
-/* ===== Chat bubbles (teks tidak terlalu gelap) ===== */
 .bubble{
   border-radius:18px; padding:10px 14px; line-height:1.45;
   word-break: break-word; max-width:85%;
@@ -99,24 +96,21 @@ body{
   box-shadow: 0 6px 18px rgba(34,197,94,.35);
 }
 .bubble-bot{
-  /* hijau susu lembut, tidak putih polos */
   background: linear-gradient(
     180deg,
-    rgba(236, 253, 245, 0.95),   /* emerald-50 */
-    rgba(209, 250, 229, 0.95)    /* emerald-100 */
+    rgba(236, 253, 245, 0.95),   
+    rgba(209, 250, 229, 0.95)    
   );
-  color:#123a23;                 /* hijau tua lembut (readable) */
+  color:#123a23;                
   border:1px solid rgba(16,185,129,.18);
   box-shadow: 0 6px 16px rgba(16,185,129,.12);
 }
 
 
-/* formatting sederhana dalam bubble */
 .bubble strong{ font-weight:700 }
 .bubble ul{ margin-left:1rem; list-style: disc; }
 .bubble ol{ margin-left:1rem; list-style: decimal; }
 
-/* typing dots */
 .typing{ display:inline-flex; gap:6px; align-items:center }
 .typing span{
   width:6px; height:6px; border-radius:9999px; background: var(--brand-600);
@@ -129,12 +123,10 @@ body{
   40%{ transform:translateY(-3px); opacity:1 }
 }
 
-/* sticky input + safe area */
 .pb-safe{ padding-bottom:max(.75rem, env(safe-area-inset-bottom)) }
 .pt-safe{ padding-top:max(.75rem, env(safe-area-inset-top)) }
 .input-bar{ position:sticky; bottom:0; left:0; right:0 }
 
-/* ===== Input bar gelap menyatu background ===== */
 .input-dark{
   background: linear-gradient(180deg, #0f2b16, #0b2012);
   color: #e7ffee;
@@ -146,26 +138,22 @@ body{
 }
 .input-dark .hint { color: #bfead1 }
 
-/* scrollbar halus */
 ::-webkit-scrollbar{ width:8px }
 ::-webkit-scrollbar-thumb{ background:rgba(16,185,129,.35); border-radius:9999px }
 
-/* tombol new messages (floating) */
 .fab{
   position: sticky;
   bottom: 80px;
   margin-left: auto;
   z-index: 10;
 }
-/* === Header hijau solid === */
 .header-sticky {
   position: sticky;
   top: max(0px, env(safe-area-inset-top));
-  z-index: 30; /* di atas konten */
+  z-index: 30; 
 }
 
 .header-solid {
-  /* hijau lembut → hijau utama (solid, bukan transparan) */
   background: linear-gradient(180deg, #34d399 0%, #10b981 100%); /* emerald-400 → emerald-500 */
   border: 1.5px solid rgba(6, 95, 70, 0.25);  /* emerald-800 */
   box-shadow: 0 10px 24px rgba(16, 185, 129, 0.18);
