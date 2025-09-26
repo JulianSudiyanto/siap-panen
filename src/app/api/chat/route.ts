@@ -1,81 +1,80 @@
+// src/app/api/chat/route.ts
+
 import { google } from "@ai-sdk/google";
-import { generateText } from "ai";
+import { generateText, convertToModelMessages, ModelMessage } from "ai";
 import { NextRequest, NextResponse } from "next/server";
+import { tools } from "@/lib/tools-definitions";
+import { cekCuaca, buatJadwalTanam, hitungKebutuhan } from "@/lib/tools";
 
 export const maxDuration = 60;
 
-// === Tools sederhana ===
-async function cekCuaca(lokasi: string) {
-  console.log("🌦️ Tool cuaca dipanggil untuk:", lokasi);
-  // nanti bisa pakai API cuaca beneran
-  return `Cuaca di ${lokasi} besok cerah, curah hujan rendah.`;
-}
-
-async function buatJadwalTanam(tanaman: string, tanggal: string) {
-  console.log("📅 Tool jadwal tanam dipanggil untuk:", tanaman, tanggal);
-  return `Jadwal tanam untuk ${tanaman} dimulai pada ${tanggal}, panen sekitar 90 hari kemudian.`;
-}
-
-async function hitungKebutuhan(luasHa: number, dosisKgPerHa: number, airLiterPerHa: number) {
-  console.log("🌱 Tool pupuk dipanggil untuk luas:", luasHa, "ha");
-  const totalPupuk = luasHa * dosisKgPerHa;
-  const totalAir = luasHa * airLiterPerHa;
-  return `Untuk ${luasHa} ha: butuh ${totalPupuk} kg pupuk & ${totalAir} liter air.`;
-}
-
-// === API Route ===
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
+    console.log("📩 BODY:", body); // debug isi request
+
     const { messages } = body;
 
+    // 🔹 validasi messages dulu
     if (!messages || !Array.isArray(messages)) {
       return NextResponse.json(
-        { error: "Invalid messages format" },
+        { error: "Invalid messages format. Expected an array of messages." },
         { status: 400 }
       );
     }
 
-    const lastUserMessage: string =
-      messages[messages.length - 1]?.content?.toString() || "";
+    // 🔹 convert UIMessage[] ➝ ModelMessage[]
+    const modelMessages: ModelMessage[] = convertToModelMessages(messages);
 
-    let toolResponse: string | null = null;
+    // 🔹 Step 1: kirim ke AI
+    let result = await generateText({
+      model: google("gemini-2.5-flash"),
+      messages: modelMessages,
+      tools,
+    });
 
-    // 🔧 Deteksi trigger untuk tools
-    if (lastUserMessage.toLowerCase().includes("cuaca")) {
-      toolResponse = await cekCuaca("Desa Contoh");
-    } else if (lastUserMessage.toLowerCase().includes("jadwal")) {
-      toolResponse = await buatJadwalTanam("padi", "2025-10-01");
-    } else if (lastUserMessage.toLowerCase().includes("pupuk")) {
-      toolResponse = await hitungKebutuhan(2, 50, 1000);
+    // 🔹 Step 2: cek apakah AI panggil tool
+    if (result.toolCalls && result.toolCalls.length > 0) {
+      const tool = result.toolCalls[0];
+      let toolResult: string | null = null;
+
+      if (tool.name === "cekCuaca") {
+        toolResult = await cekCuaca(tool.parameters.lokasi);
+      } else if (tool.name === "buatJadwalTanam") {
+        toolResult = await buatJadwalTanam(
+          tool.parameters.tanaman,
+          tool.parameters.tanggal
+        );
+      } else if (tool.name === "hitungKebutuhan") {
+        toolResult = await hitungKebutuhan(
+          tool.parameters.luasHa,
+          tool.parameters.dosisKgPerHa,
+          tool.parameters.airLiterPerHa
+        );
+      }
+
+      // 🔹 Step 3: kasih hasil tool balik ke AI biar dia rangkum
+      result = await generateText({
+        model: google("gemini-2.5-flash"),
+        messages: [
+          ...modelMessages,
+          { role: "assistant", content: `Tool ${tool.name} berhasil dipanggil.` },
+          { role: "tool", content: toolResult ?? "Tool tidak mengembalikan data." },
+        ],
+      });
+
+      return NextResponse.json({
+        response: result.text,
+        fromTool: toolResult,
+      });
     }
 
-    // 🚀 Generate jawaban AI
-    const result = await generateText({
-      model: google("gemini-2.5-flash"),
-      prompt: `Kamu adalah asisten pertanian bernama "Siap Panen".
-Tugasmu membantu petani dalam:
-- Menentukan waktu tanam yang tepat sesuai musim/cuaca
-- Membuat jadwal penyiraman & pemupukan
-- Memberikan tips perawatan tanaman
-- Menjelaskan penyakit tanaman dan solusinya
-Jawablah ringkas, praktis, dan relevan.
-
-Pertanyaan pengguna: ${lastUserMessage}`,
-    });
-
-    // ✅ Kirim balik ke frontend
-    return NextResponse.json({
-      response: result.text,
-      toolResponse, // biar bisa dicek di UI
-    });
-  } catch (error) {
-    console.error("💥 API ERROR:", error);
+    // 🔹 Kalau ga ada tool
+    return NextResponse.json({ response: result.text });
+  } catch (err) {
+    console.error("💥 API Error:", err);
     return NextResponse.json(
-      {
-        error: "Failed to generate response",
-        details: error instanceof Error ? error.message : "Unknown error",
-      },
+      { error: "Internal Server Error" },
       { status: 500 }
     );
   }
