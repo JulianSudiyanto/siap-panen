@@ -1,7 +1,5 @@
-// src/app/api/chat/route.ts
-
 import { google } from "@ai-sdk/google";
-import { generateText, convertToModelMessages, ModelMessage } from "ai";
+import { generateText } from "ai";
 import { NextRequest, NextResponse } from "next/server";
 import { tools } from "@/lib/tools-definitions";
 import { cekCuaca, buatJadwalTanam, hitungKebutuhan } from "@/lib/tools";
@@ -11,71 +9,81 @@ export const maxDuration = 60;
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    console.log("📩 BODY:", body); // debug isi request
-
     const { messages } = body;
 
-    // 🔹 validasi messages dulu
-    if (!messages || !Array.isArray(messages)) {
-      return NextResponse.json(
-        { error: "Invalid messages format. Expected an array of messages." },
-        { status: 400 }
-      );
+    // Get only the last user message
+    const userMessages = messages.filter((m: any) => m.role === 'user');
+    const lastUserMessage = userMessages[userMessages.length - 1]?.content || '';
+    
+    console.log("📩 User query:", lastUserMessage);
+
+    // Simple keyword detection for tools
+    let toolResponse = '';
+    
+    if (lastUserMessage.toLowerCase().includes('cuaca') || 
+        lastUserMessage.toLowerCase().includes('hujan')) {
+      
+      console.log("🌧️ Detected weather query");
+      try {
+        toolResponse = await cekCuaca('Bandung'); // Default lokasi
+        console.log("🌧️ Weather result:", toolResponse);
+      } catch (error) {
+        console.error("Weather tool error:", error);
+        toolResponse = "Maaf, tidak bisa mengambil data cuaca saat ini.";
+      }
+      
+    } else if (lastUserMessage.toLowerCase().includes('tanam') || 
+               lastUserMessage.toLowerCase().includes('jadwal')) {
+      
+      console.log("🌱 Detected planting query");
+      try {
+        toolResponse = await buatJadwalTanam('padi', new Date().toISOString());
+        console.log("🌱 Planting result:", toolResponse);
+      } catch (error) {
+        console.error("Planting tool error:", error);
+        toolResponse = "Maaf, tidak bisa membuat jadwal tanam saat ini.";
+      }
     }
 
-    // 🔹 convert UIMessage[] ➝ ModelMessage[]
-    const modelMessages: ModelMessage[] = convertToModelMessages(messages);
+    // Create simple prompt for AI
+    let prompt = lastUserMessage;
+    if (toolResponse) {
+      prompt = `User bertanya: "${lastUserMessage}"
 
-    // 🔹 Step 1: kirim ke AI
-    let result = await generateText({
+Data yang berhasil diambil: ${toolResponse}
+
+Berikan respons yang informatif dan ramah dalam bahasa Indonesia berdasarkan data tersebut.`;
+    }
+
+    // Single call to AI
+    const result = await generateText({
       model: google("gemini-2.5-flash"),
-      messages: modelMessages,
-      tools,
+      messages: [
+        {
+          role: 'system',
+          content: 'Kamu adalah Siap Panen, asisten AI untuk petani Indonesia. Berikan jawaban yang ramah, informatif, dan praktis.'
+        },
+        {
+          role: 'user',
+          content: prompt
+        }
+      ],
     });
 
-    // 🔹 Step 2: cek apakah AI panggil tool
-    if (result.toolCalls && result.toolCalls.length > 0) {
-      const tool = result.toolCalls[0];
-      let toolResult: string | null = null;
+    console.log("✅ AI response:", result.text);
 
-      if (tool.name === "cekCuaca") {
-        toolResult = await cekCuaca(tool.parameters.lokasi);
-      } else if (tool.name === "buatJadwalTanam") {
-        toolResult = await buatJadwalTanam(
-          tool.parameters.tanaman,
-          tool.parameters.tanggal
-        );
-      } else if (tool.name === "hitungKebutuhan") {
-        toolResult = await hitungKebutuhan(
-          tool.parameters.luasHa,
-          tool.parameters.dosisKgPerHa,
-          tool.parameters.airLiterPerHa
-        );
-      }
+    return NextResponse.json({
+      response: result.text
+    });
 
-      // 🔹 Step 3: kasih hasil tool balik ke AI biar dia rangkum
-      result = await generateText({
-        model: google("gemini-2.5-flash"),
-        messages: [
-          ...modelMessages,
-          { role: "assistant", content: `Tool ${tool.name} berhasil dipanggil.` },
-          { role: "tool", content: toolResult ?? "Tool tidak mengembalikan data." },
-        ],
-      });
-
-      return NextResponse.json({
-        response: result.text,
-        fromTool: toolResult,
-      });
-    }
-
-    // 🔹 Kalau ga ada tool
-    return NextResponse.json({ response: result.text });
-  } catch (err) {
-    console.error("💥 API Error:", err);
+  } catch (error) {
+    console.error("💥 Error:", error);
     return NextResponse.json(
-      { error: "Internal Server Error" },
-      { status: 500 }
+      { 
+        response: "Maaf, terjadi kesalahan. Coba lagi ya! 😅",
+        error: process.env.NODE_ENV === 'development' ? String(error) : undefined
+      },
+      { status: 200 } // Return 200 to avoid frontend error handling
     );
   }
 }
