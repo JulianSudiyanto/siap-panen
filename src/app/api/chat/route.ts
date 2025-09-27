@@ -4,7 +4,6 @@ import { google } from "@ai-sdk/google";
 import { generateText } from "ai";
 import { NextRequest, NextResponse } from "next/server";
 
-// 🧠 Import agent components
 import { AgentToolRegistry } from "@/lib/agents/tool-registry";
 import { ConversationMemory } from "@/lib/agents/memory";
 import { ContextAnalyzer } from "@/lib/agents/context-analyzer";
@@ -23,21 +22,17 @@ export async function POST(req: NextRequest) {
       conversationId: conversationId || 'new'
     });
 
-    // 🧠 Initialize agent components
     const toolRegistry = new AgentToolRegistry();
     const memory = new ConversationMemory(conversationId);
     const contextAnalyzer = new ContextAnalyzer();
 
-    // 💾 Load conversation state
     const conversationState = await memory.loadState();
     
-    // 📝 Get user query (simple string extraction)
     const userMessages = messages.filter((m: { role: string }) => m.role === 'user');
     const userQuery: string = userMessages[userMessages.length - 1]?.content || '';
     
     console.log("💬 User Query:", userQuery);
 
-    // 🔍 Analyze context
     const contextAnalysis = await contextAnalyzer.analyze(
       userQuery, 
       conversationState?.context || {}
@@ -45,24 +40,20 @@ export async function POST(req: NextRequest) {
     
     console.log("🔍 Context Analysis:", contextAnalysis);
 
-    // 🎯 Get recommended tools
     const recommendedTools = toolRegistry.recommendTools(userQuery);
     console.log("🔧 Recommended Tools:", recommendedTools);
 
-    // 🚀 Execute tools
     const toolResults: Record<string, unknown> = {};
     
     for (const toolName of recommendedTools) {
       console.log(`⚡ Executing tool: ${toolName}`);
       
       try {
-        // Generate parameters based on query
         const parameters = generateToolParameters(toolName, userQuery, contextAnalysis);
         const toolResult = await toolRegistry.executeTool(toolName, parameters);
         
         toolResults[toolName] = toolResult;
         
-        // Save tool call to memory
         if (conversationState) {
           await memory.addToolCall({
             toolName: toolName,
@@ -81,8 +72,6 @@ export async function POST(req: NextRequest) {
         };
       }
     }
-
-    // 🎨 Generate intelligent response
     const hasToolResults = Object.keys(toolResults).length > 0;
     let systemPrompt = `Kamu adalah Siap Panen, asisten AI cerdas untuk petani Indonesia yang ramah dan informatif.`;
     
@@ -105,7 +94,6 @@ export async function POST(req: NextRequest) {
       ]
     });
 
-    // 💾 Update conversation state
     if (conversationState) {
       await memory.updateContext({
         last_query: userQuery,
@@ -116,7 +104,6 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // 📊 Generate response metadata
     const responseMetadata = {
       conversationId: memory.getConversationId(),
       toolsUsed: Object.keys(toolResults),
@@ -140,7 +127,6 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     console.error("💥 Agentic AI Error:", error);
     
-    // 🛟 Fallback response with proper error handling
     const fallbackResponse = await handleErrorFallback(requestBody);
     
     return NextResponse.json({
@@ -153,20 +139,17 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// 🔧 Generate tool parameters based on query
 function generateToolParameters(toolName: string, query: string, context: { user_location?: string }) {
   const queryLower = query.toLowerCase();
 
   switch (toolName) {
     case 'cekCuaca':
-      // Extract location or use default
       const locationMatch = queryLower.match(/(bandung|jakarta|surabaya|medan|makassar|bogor|depok|tangerang|bekasi)/i);
       return {
         lokasi: locationMatch?.[0] || context.user_location || 'Bandung'
       };
 
     case 'buatJadwalTanam':
-      // Extract crop type
       const cropMatch = queryLower.match(/(padi|jagung|kedelai|cabai|tomat|bayam|kangkung|sawi)/i);
       return {
         tanaman: cropMatch?.[0] || 'padi',
@@ -174,7 +157,6 @@ function generateToolParameters(toolName: string, query: string, context: { user
       };
 
     case 'hitungKebutuhan':
-      // Extract numbers from query
       const numberMatches = queryLower.match(/(\d+(?:\.\d+)?)/g);
       const numbers = numberMatches ? numberMatches.map(n => parseFloat(n)) : [];
       
@@ -189,7 +171,6 @@ function generateToolParameters(toolName: string, query: string, context: { user
   }
 }
 
-// 💡 Generate follow-up suggestions
 function generateFollowUps(contextAnalysis: { agricultural_domain: string[]; query_type: string }) {
   const suggestions: string[] = [];
   
@@ -203,7 +184,6 @@ function generateFollowUps(contextAnalysis: { agricultural_domain: string[]; que
     suggestions.push("Butuh hitung kebutuhan lain?");
   }
   
-  // Default suggestions
   if (suggestions.length === 0) {
     suggestions.push(
       "Mau tanya tentang cuaca?",
@@ -215,7 +195,6 @@ function generateFollowUps(contextAnalysis: { agricultural_domain: string[]; que
   return suggestions.slice(0, 3);
 }
 
-// 🛟 Error fallback handler
 async function handleErrorFallback(requestBody: { messages?: { content?: string }[] }): Promise<string> {
   try {
     if (!requestBody?.messages) {
